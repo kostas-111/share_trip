@@ -1,13 +1,11 @@
 package api
 
 import (
-	"context"
-
 	"github.com/gofiber/fiber/v2"
 )
 
 func (s *Server) CheckDbConn(c *fiber.Ctx) error {
-	if err := s.Repository.Ping(context.Background()); err != nil {
+	if err := s.db.Ping(c.UserContext()); err != nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"status":  "unavailable",
 			"message": "Database connection failed",
