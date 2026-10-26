@@ -30,7 +30,7 @@ func main() {
 	defer pool.Close()
 
 	repo := repository.NewRepoPg(pool)
-	svc := service.NewTripService(repo)
+	svc := service.NewTripService(repo, repo)
 	tripHandler := api.NewTripHandler(svc)
 	server := api.NewServer(repo, tripHandler)
 
