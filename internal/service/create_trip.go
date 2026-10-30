@@ -36,7 +36,7 @@ func (s *TripService) CreateTrip(ctx context.Context, req CreateTripRequest) (*C
 	}
 
 	if err := s.repo.Create(ctx, domainResp.Trip); err != nil {
-		return nil, fmt.Errorf("create trip: %w", err)
+		return nil, fmt.Errorf("TripService.CreateTrip: %w", err)
 	}
 
 	// domain.CreateTripResponse -> service.CreateTripResponse

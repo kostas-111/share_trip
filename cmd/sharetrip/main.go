@@ -25,7 +25,7 @@ func main() {
 
 	pool, err := repository.NewPool(ctx, cfg.DSN())
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("repository.NewPool: %v", err)
 	}
 	defer pool.Close()
 
@@ -39,6 +39,6 @@ func main() {
 
 	err = app.Listen(":8080")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("app.Listen: %v", err)
 	}
 }

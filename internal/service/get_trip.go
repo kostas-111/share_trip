@@ -24,7 +24,7 @@ func (s *TripService) GetTrip(ctx context.Context, req GetTripRequest) (*GetTrip
 
 	trip, err := s.repo.GetByID(ctx, req.ID)
 	if err != nil {
-		return nil, fmt.Errorf("get trip: %w", err)
+		return nil, fmt.Errorf("TripService.GetTrip: %w", err)
 	}
 	if trip == nil {
 		return nil, fmt.Errorf("%w: id=%s", domain.ErrTripNotFound, req.ID)

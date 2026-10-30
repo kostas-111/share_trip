@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"log"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -46,6 +47,10 @@ func errorStatus(err error) (int, ErrorCode, string) {
 // отправляет ErrorResponse клиенту.
 func writeError(c *fiber.Ctx, err error) error {
 	status, code, msg := errorStatus(err)
+	if status == fiber.StatusInternalServerError {
+		// клиенту уходит обезличенное сообщение: детали ошибки остаются только в логе
+		log.Printf("unhandled error: %v", err)
+	}
 	return c.Status(status).JSON(ErrorResponse{Code: code, Message: msg})
 }
 
