@@ -9,6 +9,7 @@ import (
 	"github.com/kostas-111/share_trip/internal/api"
 	"github.com/kostas-111/share_trip/internal/repository"
 	"github.com/kostas-111/share_trip/internal/service"
+	"github.com/kostas-111/share_trip/internal/usecase"
 )
 
 func main() {
@@ -30,7 +31,11 @@ func main() {
 	defer pool.Close()
 
 	repo := repository.NewRepoPg(pool)
-	svc := service.NewTripService(repo, repo)
+	svc := service.NewTripService(
+		usecase.NewTripCreator(repo),
+		usecase.NewTripReader(repo),
+		usecase.NewTripPublisher(repo, repo),
+	)
 	tripHandler := api.NewTripHandler(svc)
 	server := api.NewServer(repo, tripHandler)
 

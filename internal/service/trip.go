@@ -1,14 +1,23 @@
 package service
 
-import (
-	"github.com/kostas-111/share_trip/internal/repository"
-)
+import "github.com/kostas-111/share_trip/internal/usecase"
 
+// TripService — оркестратор сценариев: принимает модели своего слоя,
+// вызывает сервисы usecase-слоя и собирает ответ.
 type TripService struct {
-	repo   repository.TripRepository
-	runner repository.Runner
+	creator   *usecase.TripCreator
+	reader    *usecase.TripReader
+	publisher *usecase.TripPublisher
 }
 
-func NewTripService(repo repository.TripRepository, runner repository.Runner) *TripService {
-	return &TripService{repo: repo, runner: runner}
+func NewTripService(
+	creator *usecase.TripCreator,
+	reader *usecase.TripReader,
+	publisher *usecase.TripPublisher,
+) *TripService {
+	return &TripService{
+		creator:   creator,
+		reader:    reader,
+		publisher: publisher,
+	}
 }
