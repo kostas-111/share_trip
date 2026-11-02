@@ -16,7 +16,7 @@ type OutboxRepository interface {
 var _ OutboxRepository = (*RepoPg)(nil)
 
 // InsertEvent пишет событие в той же транзакции, что и изменение агрегата.
-// created_at не передаём — его заполняет DEFAULT NOW() в таблице.
+// created_at не передаём - его заполняет DEFAULT NOW() в таблице.
 func (r *RepoPg) InsertEvent(ctx context.Context, tx pgx.Tx, event domain.OutboxEvent) error {
 	e, err := outboxToEntity(event)
 	if err != nil {
