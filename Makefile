@@ -2,8 +2,10 @@ APP_NAME        := share_trip
 BIN_DIR         := $(CURDIR)/bin
 MAIN_PKG        := ./cmd/sharetrip
 
-DB_DSN          ?= postgres://postgres:postgres@localhost:5432/share_trip?sslmode=disable
-MIGRATIONS_DIR  := ./migrations
+DB_DSN          ?= postgres://postgres:password@localhost:6544/share_trip?sslmode=disable
+
+GOOSE           ?= goose
+MIGRATIONS_DIR  ?= ./migrations
 
 GOLANGCI_LINT_VERSION := v2.11.3
 MIGRATE_VERSION       := v4.18.1
@@ -54,15 +56,23 @@ up: ## Поднять PostgreSQL в Docker
 down: ## Остановить контейнеры
 	docker compose down
 
-# ==== Миграции ====
-migrate-up: $(MIGRATE) ## Применить все миграции
-	$(MIGRATE) -path $(MIGRATIONS_DIR) -database "$(DB_DSN)" up
+migrate-up: ## Применить все миграции
+	$(GOOSE) -dir $(MIGRATIONS_DIR) postgres "$(DB_DSN)" up
 
-migrate-down: $(MIGRATE) ## Откатить одну миграцию
-	$(MIGRATE) -path $(MIGRATIONS_DIR) -database "$(DB_DSN)" down 1
+migrate-down: ## Откатить последнюю миграцию
+	$(GOOSE) -dir $(MIGRATIONS_DIR) postgres "$(DB_DSN)" down
 
-migrate-status: $(MIGRATE) ## Показать текущую версию
-	$(MIGRATE) -path $(MIGRATIONS_DIR) -database "$(DB_DSN)" version
+migrate-status: ## Показать статус всех миграций
+	$(GOOSE) -dir $(MIGRATIONS_DIR) postgres "$(DB_DSN)" status
+
+migrate-version: ## Показать текущую версию схемы
+	$(GOOSE) -dir $(MIGRATIONS_DIR) postgres "$(DB_DSN)" version
+
+migrate-reset: ## Откатить ВСЕ миграции (down-to 0)
+	$(GOOSE) -dir $(MIGRATIONS_DIR) postgres "$(DB_DSN)" down-to 0
+
+migrate-create: ## Создать миграцию: make migrate-create name=create_trips
+	$(GOOSE) -dir $(MIGRATIONS_DIR) create $(name) sql
 
 # ==== Полный прогон (как в CI) ====
 check: fmt lint test ## fmt + lint + test

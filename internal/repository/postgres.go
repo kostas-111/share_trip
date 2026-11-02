@@ -14,7 +14,6 @@ func NewRepoPg(pool *pgxpool.Pool) *RepoPg {
 	return &RepoPg{pool: pool}
 }
 
-// проверяет соединение с БД
 func (r *RepoPg) Ping(ctx context.Context) error {
 	return r.pool.Ping(ctx)
 }

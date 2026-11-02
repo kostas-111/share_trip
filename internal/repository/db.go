@@ -31,7 +31,7 @@ func (c Config) DSN() string {
 func NewPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse pool config: %w", err)
 	}
 
 	cfg.MaxConns = 10
@@ -41,7 +41,7 @@ func NewPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("new pool: %w", err)
 	}
 
 	pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
@@ -49,7 +49,7 @@ func NewPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 
 	if err := pool.Ping(pingCtx); err != nil {
 		pool.Close()
-		return nil, err
+		return nil, fmt.Errorf("ping db: %w", err)
 	}
 
 	return pool, nil

@@ -1,11 +1,21 @@
 package api
 
-import "github.com/kostas-111/share_trip/internal/repository"
+import (
+	"context"
+)
 
-type Server struct {
-	Repository *repository.RepoPg
+type Pinger interface {
+	Ping(ctx context.Context) error
 }
 
-func NewServer(repo *repository.RepoPg) *Server {
-	return &Server{Repository: repo}
+type Server struct {
+	db   Pinger
+	trip *TripHandler
+}
+
+func NewServer(db Pinger, trip *TripHandler) *Server {
+	return &Server{
+		db:   db,
+		trip: trip,
+	}
 }

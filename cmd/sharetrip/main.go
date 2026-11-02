@@ -8,6 +8,7 @@ import (
 	config "github.com/kostas-111/share_trip/configs"
 	"github.com/kostas-111/share_trip/internal/api"
 	"github.com/kostas-111/share_trip/internal/repository"
+	"github.com/kostas-111/share_trip/internal/service"
 )
 
 func main() {
@@ -24,19 +25,20 @@ func main() {
 
 	pool, err := repository.NewPool(ctx, cfg.DSN())
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("repository.NewPool: %v", err)
 	}
 	defer pool.Close()
 
 	repo := repository.NewRepoPg(pool)
-
-	server := api.NewServer(repo)
+	svc := service.NewTripService(repo)
+	tripHandler := api.NewTripHandler(svc)
+	server := api.NewServer(repo, tripHandler)
 
 	app := fiber.New()
 	server.Route(app.Group("/api"))
 
 	err = app.Listen(":8080")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("app.Listen: %v", err)
 	}
 }
