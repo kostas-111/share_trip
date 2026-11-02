@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,8 +22,8 @@ type CreateTripResponse struct {
 }
 
 func (s *TripService) CreateTrip(ctx context.Context, req CreateTripRequest) (*CreateTripResponse, error) {
-	//service.CreateTripRequest -> domain.CreateTripRequest
-	domainResp, err := domain.CreateTrip(domain.CreateTripRequest{
+	// service.CreateTripRequest -> domain.CreateTripRequest
+	trip, err := s.creator.Create(ctx, domain.CreateTripRequest{
 		ClientID:       req.ClientID,
 		FromPoint:      req.FromPoint,
 		ToPoint:        req.ToPoint,
@@ -35,10 +34,6 @@ func (s *TripService) CreateTrip(ctx context.Context, req CreateTripRequest) (*C
 		return nil, err
 	}
 
-	if err := s.repo.Create(ctx, domainResp.Trip); err != nil {
-		return nil, fmt.Errorf("TripService.CreateTrip: %w", err)
-	}
-
-	// domain.CreateTripResponse -> service.CreateTripResponse
-	return &CreateTripResponse{Trip: domainResp.Trip}, nil
+	// domain.Trip -> service.CreateTripResponse
+	return &CreateTripResponse{Trip: trip}, nil
 }
