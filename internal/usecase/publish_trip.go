@@ -14,10 +14,15 @@ import (
 type TripPublisher struct {
 	repo   repository.TripRepository
 	runner repository.Runner
+	outbox repository.OutboxRepository
 }
 
-func NewTripPublisher(repo repository.TripRepository, runner repository.Runner) *TripPublisher {
-	return &TripPublisher{repo: repo, runner: runner}
+func NewTripPublisher(
+	repo repository.TripRepository,
+	runner repository.Runner,
+	outbox repository.OutboxRepository,
+) *TripPublisher {
+	return &TripPublisher{repo: repo, runner: runner, outbox: outbox}
 }
 
 func (p *TripPublisher) Publish(ctx context.Context, tripID uuid.UUID) (*domain.Trip, error) {
@@ -41,6 +46,9 @@ func (p *TripPublisher) Publish(ctx context.Context, tripID uuid.UUID) (*domain.
 			return err
 		}
 		if err := p.repo.InsertHistory(ctx, tx, trip.ID, domResp.FromStatus, domResp.ToStatus); err != nil {
+			return err
+		}
+		if err := p.outbox.InsertEvent(ctx, tx, domain.NewTripPublishedEvent(trip.ID)); err != nil {
 			return err
 		}
 
