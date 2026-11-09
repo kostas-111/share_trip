@@ -10,8 +10,7 @@
 	- internal/app/ — композиция приложения: wiring, запуск, graceful shutdown;
 	- internal/api/ — реализация HTTP-границы: Fiber handlers, роутинг, валидация и mapping, без бизнес-логики;
 	- internal/service/ — слой-оркестратор: вызывает сервисы usecase-слоя, без работы с БД и транзакций;
-	- internal/usecase/ — бизнес-операция целиком: сценарий, транзакции и обращения к repository;
-	- internal/domain/ — ядро системы: состояния, правила, переходы, политики;
+	- internal/usecase/ — бизнес-операция целиком: сценарий, модели, состояния и правила переходов, транзакции;
 	- internal/repository/ — работа с персистентностью и PostgreSQL;
 	- internal/repository/entity/ — модели таблиц, используемые repository-слоем;
 	- internal/clock/, internal/id/ — небольшие инфраструктурные абстракции для тестируемости;
