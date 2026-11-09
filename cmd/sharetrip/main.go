@@ -34,7 +34,7 @@ func main() {
 	svc := service.NewTripService(
 		usecase.NewTripCreator(repo),
 		usecase.NewTripReader(repo),
-		usecase.NewTripPublisher(repo, repo),
+		usecase.NewTripPublisher(repo, repo, repo),
 	)
 	tripHandler := api.NewTripHandler(svc)
 	server := api.NewServer(repo, tripHandler)
