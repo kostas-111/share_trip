@@ -6,18 +6,14 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/kostas-111/share_trip/internal/domain"
+	"github.com/kostas-111/share_trip/internal/usecase"
 )
 
-type OutboxRepository interface {
-	InsertEvent(ctx context.Context, tx pgx.Tx, event domain.OutboxEvent) error
-}
-
-var _ OutboxRepository = (*RepoPg)(nil)
+var _ usecase.OutboxRepository = (*RepoPg)(nil)
 
 // InsertEvent пишет событие в той же транзакции, что и изменение агрегата.
 // created_at не передаём - его заполняет DEFAULT NOW() в таблице.
-func (r *RepoPg) InsertEvent(ctx context.Context, tx pgx.Tx, event domain.OutboxEvent) error {
+func (r *RepoPg) InsertEvent(ctx context.Context, tx pgx.Tx, event usecase.OutboxEvent) error {
 	e, err := outboxToEntity(event)
 	if err != nil {
 		return err

@@ -1,9 +1,11 @@
-package domain
+package usecase
 
 import (
-	"github.com/google/uuid"
-)
+	"context"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+)
 
 const (
 	EventTripPublished = "trip_published"
@@ -27,4 +29,9 @@ func NewTripPublishedEvent(tripID uuid.UUID) OutboxEvent {
 		AggregateID: tripID,
 		Payload:     TripPublishedPayload{TripID: tripID},
 	}
+}
+
+// OutboxRepository пишет исходящее событие в той же транзакции, что и изменение агрегата.
+type OutboxRepository interface {
+	InsertEvent(ctx context.Context, tx pgx.Tx, event OutboxEvent) error
 }

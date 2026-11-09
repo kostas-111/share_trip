@@ -48,10 +48,6 @@ func WithTxErr(
 	return err
 }
 
-type Runner interface {
-	WithTx(ctx context.Context, block func(tx pgx.Tx) error) error
-}
-
 func (r *RepoPg) WithTx(ctx context.Context, block func(tx pgx.Tx) error) error {
 	return WithTxErr(ctx, r.pool, block)
 }
