@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/kostas-111/share_trip/internal/domain"
+	"github.com/kostas-111/share_trip/internal/usecase"
 )
 
 type CreateTripRequest struct {
@@ -18,12 +18,12 @@ type CreateTripRequest struct {
 }
 
 type CreateTripResponse struct {
-	Trip *domain.Trip
+	Trip *usecase.Trip
 }
 
 func (s *TripService) CreateTrip(ctx context.Context, req CreateTripRequest) (*CreateTripResponse, error) {
-	// service.CreateTripRequest -> domain.CreateTripRequest
-	trip, err := s.creator.Create(ctx, domain.CreateTripRequest{
+	// service.CreateTripRequest -> usecase.CreateTripRequest
+	trip, err := s.creator.Create(ctx, usecase.CreateTripRequest{
 		ClientID:       req.ClientID,
 		FromPoint:      req.FromPoint,
 		ToPoint:        req.ToPoint,
@@ -34,6 +34,6 @@ func (s *TripService) CreateTrip(ctx context.Context, req CreateTripRequest) (*C
 		return nil, err
 	}
 
-	// domain.Trip -> service.CreateTripResponse
+	// usecase.Trip -> service.CreateTripResponse
 	return &CreateTripResponse{Trip: trip}, nil
 }

@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/kostas-111/share_trip/internal/domain"
+	"github.com/kostas-111/share_trip/internal/usecase"
 )
 
 type GetTripRequest struct {
@@ -13,7 +13,7 @@ type GetTripRequest struct {
 }
 
 type GetTripResponse struct {
-	Trip *domain.Trip
+	Trip *usecase.Trip
 }
 
 func (s *TripService) GetTrip(ctx context.Context, req GetTripRequest) (*GetTripResponse, error) {
