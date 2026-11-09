@@ -53,13 +53,22 @@ func TestServer_CreateTrip(t *testing.T) {
 		err = json.Unmarshal(respBody, &got)
 		require.NoError(t, err)
 
-		require.NotEqual(t, uuid.Nil, got.ID)
-		require.Equal(t, payload.ClientID, got.ClientID)
-		require.Equal(t, payload.FromPoint, got.FromPoint)
-		require.Equal(t, payload.ToPoint, got.ToPoint)
-		require.Equal(t, payload.DepartureTime, got.DepartureTime)
-		require.Equal(t, payload.AvailableSeats, got.AvailableSeats)
-		require.Equal(t, "draft", got.Status)
-		require.False(t, got.CreatedAt.IsZero())
+		// id и created_at генерирует сервер, тест их заранее не знает:
+		// значения выносятся из сравнения структур и проверяются отдельно
+		id, createdAt := got.ID, got.CreatedAt
+		got.ID, got.CreatedAt = uuid.Nil, time.Time{}
+
+		expected := api.CreateTripResponse{
+			ClientID:       payload.ClientID,
+			FromPoint:      payload.FromPoint,
+			ToPoint:        payload.ToPoint,
+			DepartureTime:  payload.DepartureTime,
+			AvailableSeats: payload.AvailableSeats,
+			Status:         "draft",
+		}
+		require.Equal(t, expected, got)
+
+		require.NotEqual(t, uuid.Nil, id)
+		require.False(t, createdAt.IsZero())
 	})
 }
