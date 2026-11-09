@@ -9,18 +9,23 @@ import (
 )
 
 type PublishTripRequest struct {
-	TripID uuid.UUID
+	TripID   uuid.UUID
+	ClientID uuid.UUID
 }
 
 type PublishTripResponse struct {
-	Trip *usecase.Trip
+	Trip             *usecase.Trip
+	AlreadyPublished bool
 }
 
 func (s *TripService) PublishTrip(ctx context.Context, req PublishTripRequest) (*PublishTripResponse, error) {
-	trip, err := s.publisher.Publish(ctx, req.TripID)
+	result, err := s.publisher.Publish(ctx, req.TripID, req.ClientID)
 	if err != nil {
 		return nil, err
 	}
 
-	return &PublishTripResponse{Trip: trip}, nil
+	return &PublishTripResponse{
+		Trip:             result.Trip,
+		AlreadyPublished: result.AlreadyPublished,
+	}, nil
 }

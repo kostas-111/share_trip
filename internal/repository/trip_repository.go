@@ -67,7 +67,7 @@ func (r *RepoPg) GetByIDForUpdate(ctx context.Context, tx pgx.Tx, id uuid.UUID) 
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("%w: trip %s", usecase.ErrTripNotFound, id)
+			return nil, nil // not found — не ошибка на уровне БД
 		}
 		return nil, fmt.Errorf("get trip for update: %w", err)
 	}

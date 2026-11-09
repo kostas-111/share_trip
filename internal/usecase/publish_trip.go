@@ -9,9 +9,16 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Runner выполняет блок в одной транзакции; реализация — *repository.RepoPg.
+// Runner выполняет блок в одной транзакции; реализация - *repository.RepoPg.
 type Runner interface {
 	WithTx(ctx context.Context, block func(tx pgx.Tx) error) error
+}
+
+// PublishResult - итог публикации: поездка и признак того, что она уже была
+// опубликована раньше. Повторный вызов ничего не меняет и считается успехом.
+type PublishResult struct {
+	Trip             *Trip
+	AlreadyPublished bool
 }
 
 type TripPublisher struct {
@@ -30,19 +37,31 @@ func NewTripPublisher(
 
 // Publish переводит поездку DRAFT -> PUBLISHED одной транзакцией:
 // статус, запись истории перехода и событие в outbox.
-func (p *TripPublisher) Publish(ctx context.Context, tripID uuid.UUID) (*Trip, error) {
+func (p *TripPublisher) Publish(ctx context.Context, tripID, clientID uuid.UUID) (*PublishResult, error) {
 	if tripID == uuid.Nil {
 		return nil, fmt.Errorf("%w: trip_id is required", ErrValidation)
 	}
 
-	var published *Trip
+	var result *PublishResult
 	err := p.runner.WithTx(ctx, func(tx pgx.Tx) error {
 		trip, err := p.repo.GetByIDForUpdate(ctx, tx, tripID)
 		if err != nil {
 			return err
 		}
 		if trip == nil {
-			return fmt.Errorf("%w: trip not found", ErrTripNotFound)
+			return fmt.Errorf("%w: trip %s", ErrTripNotFound, tripID)
+		}
+
+		if trip.ClientID != clientID {
+			return fmt.Errorf(
+				"%w: client %s is not driver of trip %s",
+				ErrForbidden, clientID, tripID,
+			)
+		}
+
+		if trip.Status == StatusPublished {
+			result = &PublishResult{Trip: trip, AlreadyPublished: true}
+			return nil
 		}
 
 		from := trip.Status
@@ -71,12 +90,12 @@ func (p *TripPublisher) Publish(ctx context.Context, tripID uuid.UUID) (*Trip, e
 		}
 
 		trip.Status = to
-		published = trip
+		result = &PublishResult{Trip: trip}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return published, nil
+	return result, nil
 }

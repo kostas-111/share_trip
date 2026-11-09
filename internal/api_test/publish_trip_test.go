@@ -17,6 +17,12 @@ import (
 
 func doJSON(t *testing.T, method, path string, payload any) (int, []byte) {
 	t.Helper()
+	return doJSONWithHeaders(t, method, path, payload, nil)
+}
+
+// doJSONWithHeaders отправляет запрос с дополнительными заголовками.
+func doJSONWithHeaders(t *testing.T, method, path string, payload any, headers map[string]string) (int, []byte) {
+	t.Helper()
 
 	var body io.Reader
 	if payload != nil {
@@ -28,6 +34,9 @@ func doJSON(t *testing.T, method, path string, payload any) (int, []byte) {
 	req, err := http.NewRequest(method, path, body)
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	for name, value := range headers {
+		req.Header.Set(name, value)
+	}
 
 	resp, err := testApp.Test(req, -1)
 	require.NoError(t, err)
@@ -60,9 +69,14 @@ func createTrip(t *testing.T, departureTime time.Time) api.CreateTripResponse {
 	return created
 }
 
-func publishTrip(t *testing.T, tripID uuid.UUID) (int, []byte) {
+// publishTrip публикует поездку от имени clientID: идентификатор клиента
+// передаётся заголовком X-Client-Id.
+func publishTrip(t *testing.T, tripID, clientID uuid.UUID) (int, []byte) {
 	t.Helper()
-	return doJSON(t, http.MethodPost, "/trip/publish", api.PublishTripRequest{TripID: tripID})
+	return doJSONWithHeaders(t, http.MethodPost, "/trip/publish",
+		api.PublishTripRequest{TripID: tripID},
+		map[string]string{"X-Client-Id": clientID.String()},
+	)
 }
 
 func TestServer_PublishTrip(t *testing.T) {
@@ -76,7 +90,7 @@ func TestServer_PublishTrip(t *testing.T) {
 		departure := time.Now().UTC().Add(24 * time.Hour).Truncate(time.Microsecond)
 		created := createTrip(t, departure)
 
-		status, body := publishTrip(t, created.ID)
+		status, body := publishTrip(t, created.ID, created.ClientID)
 		require.Equal(t, http.StatusOK, status)
 
 		var published api.PublishTripResponse
@@ -129,7 +143,7 @@ func TestServer_PublishTrip(t *testing.T) {
 
 		created := createTrip(t, time.Now().UTC().Add(48*time.Hour))
 
-		status, _ := publishTrip(t, created.ID)
+		status, _ := publishTrip(t, created.ID, created.ClientID)
 		require.Equal(t, http.StatusOK, status)
 
 		var (
@@ -147,24 +161,18 @@ func TestServer_PublishTrip(t *testing.T) {
 		require.Equal(t, created.ID.String(), tripIDPayload)
 	})
 
-	t.Run("conflict - повторная публикация", func(t *testing.T) {
+	t.Run("already published - повторная публикация", func(t *testing.T) {
 		t.Parallel()
 
 		created := createTrip(t, time.Now().UTC().Add(24*time.Hour))
 
-		status, _ := publishTrip(t, created.ID)
+		status, _ := publishTrip(t, created.ID, created.ClientID)
 		require.Equal(t, http.StatusOK, status)
 
-		status, body := publishTrip(t, created.ID)
-		require.Equal(t, http.StatusConflict, status)
-
-		var errResp api.ErrorResponse
-		require.NoError(t, json.Unmarshal(body, &errResp))
-		require.Equal(t, api.ErrorResponse{
-			Code: api.CodeConflict,
-			Message: "invalid trip status transition: only draft trips can be published " +
-				"(current status: published)",
-		}, errResp)
+		// повторная публикация - успешный холостой ход: 204 и пустое тело
+		status, body := publishTrip(t, created.ID, created.ClientID)
+		require.Equal(t, http.StatusNoContent, status)
+		require.Empty(t, body)
 	})
 
 	t.Run("not found - несуществующая поездка", func(t *testing.T) {
@@ -172,7 +180,7 @@ func TestServer_PublishTrip(t *testing.T) {
 
 		tripID := uuid.New()
 
-		status, body := publishTrip(t, tripID)
+		status, body := publishTrip(t, tripID, uuid.New())
 		require.Equal(t, http.StatusNotFound, status)
 
 		var errResp api.ErrorResponse
@@ -180,6 +188,63 @@ func TestServer_PublishTrip(t *testing.T) {
 		require.Equal(t, api.ErrorResponse{
 			Code:    api.CodeNotFound,
 			Message: fmt.Sprintf("trip not found: trip %s", tripID),
+		}, errResp)
+	})
+
+	t.Run("bad request - нет заголовка X-Client-Id", func(t *testing.T) {
+		t.Parallel()
+
+		status, body := doJSON(t, http.MethodPost, "/trip/publish",
+			api.PublishTripRequest{TripID: uuid.New()},
+		)
+		require.Equal(t, http.StatusBadRequest, status)
+
+		var errResp api.ErrorResponse
+		require.NoError(t, json.Unmarshal(body, &errResp))
+		require.Equal(t, api.ErrorResponse{
+			Code:    api.CodeValidation,
+			Message: "X-Client-Id is required",
+		}, errResp)
+	})
+
+	t.Run("bad request - невалидный X-Client-Id", func(t *testing.T) {
+		t.Parallel()
+
+		status, body := doJSONWithHeaders(t, http.MethodPost, "/trip/publish",
+			api.PublishTripRequest{TripID: uuid.New()},
+			map[string]string{"X-Client-Id": "not-a-uuid"},
+		)
+		require.Equal(t, http.StatusBadRequest, status)
+
+		var errResp api.ErrorResponse
+		require.NoError(t, json.Unmarshal(body, &errResp))
+		require.Equal(t, api.ErrorResponse{
+			Code:    api.CodeValidation,
+			Message: "X-Client-Id is not a valid uuid",
+		}, errResp)
+	})
+
+	t.Run("bad request - departure_time в прошлом", func(t *testing.T) {
+		t.Parallel()
+
+		created := createTrip(t, time.Now().UTC().Add(24*time.Hour))
+
+		// через API поездку с прошедшим временем не создать: create валидирует вход,
+		// поэтому departure_time откатываем прямым UPDATE
+		_, err := testPool.Exec(testCtx,
+			`UPDATE trip_domain.trips SET departure_time = NOW() - INTERVAL '1 day' WHERE id = $1`,
+			created.ID,
+		)
+		require.NoError(t, err)
+
+		status, body := publishTrip(t, created.ID, created.ClientID)
+		require.Equal(t, http.StatusBadRequest, status)
+
+		var errResp api.ErrorResponse
+		require.NoError(t, json.Unmarshal(body, &errResp))
+		require.Equal(t, api.ErrorResponse{
+			Code:    api.CodeValidation,
+			Message: "validation error: cannot publish a trip with departure_time in the past",
 		}, errResp)
 	})
 }
