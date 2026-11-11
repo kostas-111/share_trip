@@ -4,25 +4,29 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/kostas-111/share_trip/internal/domain"
+	"github.com/kostas-111/share_trip/internal/observability/logctx"
 	"github.com/kostas-111/share_trip/internal/repository/entity"
+	"github.com/kostas-111/share_trip/internal/usecase"
 )
 
-type TripRepository interface {
-	Create(ctx context.Context, trip *domain.Trip) error
-	GetByID(ctx context.Context, id uuid.UUID) (*domain.Trip, error)
-	GetByIDForUpdate(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*domain.Trip, error)
-	UpdateStatus(ctx context.Context, tx pgx.Tx, id uuid.UUID, status domain.TripStatus) error
-	InsertHistory(ctx context.Context, tx pgx.Tx, tripID uuid.UUID, from, to domain.TripStatus) error
-}
+var _ usecase.TripRepository = (*RepoPg)(nil)
 
-var _ TripRepository = (*RepoPg)(nil)
+func (r *RepoPg) Create(ctx context.Context, trip *usecase.Trip) error {
+	logger := logctx.Logger(ctx).With(
+		slog.String("layer", "repository"),
+		slog.String("repository", "TripRepository"),
+		slog.String("operation", "Create"),
+		slog.String("trip_id", trip.ID.String()),
+		slog.String("client_id", trip.ClientID.String()),
+	)
 
-func (r *RepoPg) Create(ctx context.Context, trip *domain.Trip) error {
+	logger.Info("insert trip started")
+
 	e := tripToEntity(trip)
 
 	const q = `
@@ -35,12 +39,19 @@ func (r *RepoPg) Create(ctx context.Context, trip *domain.Trip) error {
 		e.DepartureTime, e.AvailableSeats, e.Status, e.CreatedAt,
 	)
 	if err != nil {
+		logger.Error(
+			"insert trip failed",
+			slog.Any("error", err),
+		)
 		return fmt.Errorf("insert trip: %w", err)
 	}
+
+	logger.Info("insert trip completed")
+
 	return nil
 }
 
-func (r *RepoPg) GetByID(ctx context.Context, id uuid.UUID) (*domain.Trip, error) {
+func (r *RepoPg) GetByID(ctx context.Context, id uuid.UUID) (*usecase.Trip, error) {
 	const q = `
 		SELECT id, client_id, from_point, to_point, departure_time, seats, status, created_at
 		FROM trip_domain.trips
@@ -61,7 +72,7 @@ func (r *RepoPg) GetByID(ctx context.Context, id uuid.UUID) (*domain.Trip, error
 	return tripFromEntity(e), nil
 }
 
-func (r *RepoPg) GetByIDForUpdate(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*domain.Trip, error) {
+func (r *RepoPg) GetByIDForUpdate(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*usecase.Trip, error) {
 	const q = `
 		SELECT id, client_id, from_point, to_point, departure_time, seats, status, created_at
 		FROM trip_domain.trips
@@ -75,14 +86,14 @@ func (r *RepoPg) GetByIDForUpdate(ctx context.Context, tx pgx.Tx, id uuid.UUID) 
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("%w: trip %s", domain.ErrTripNotFound, id)
+			return nil, nil // not found — не ошибка на уровне БД
 		}
 		return nil, fmt.Errorf("get trip for update: %w", err)
 	}
 	return tripFromEntity(e), nil
 }
 
-func (r *RepoPg) UpdateStatus(ctx context.Context, tx pgx.Tx, id uuid.UUID, status domain.TripStatus) error {
+func (r *RepoPg) UpdateStatus(ctx context.Context, tx pgx.Tx, id uuid.UUID, status usecase.TripStatus) error {
 	const q = `UPDATE trip_domain.trips SET status = $2 WHERE id = $1`
 	if _, err := tx.Exec(ctx, q, id, status); err != nil {
 		return fmt.Errorf("update trip status: %w", err)
@@ -90,7 +101,7 @@ func (r *RepoPg) UpdateStatus(ctx context.Context, tx pgx.Tx, id uuid.UUID, stat
 	return nil
 }
 
-func (r *RepoPg) InsertHistory(ctx context.Context, tx pgx.Tx, tripID uuid.UUID, from, to domain.TripStatus) error {
+func (r *RepoPg) InsertHistory(ctx context.Context, tx pgx.Tx, tripID uuid.UUID, from, to usecase.TripStatus) error {
 	const q = `
 		INSERT INTO trip_domain.trip_history (id, trip_id, from_status, to_status)
 		VALUES ($1, $2, $3, $4)`

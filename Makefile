@@ -13,8 +13,15 @@ MIGRATE_VERSION       := v4.18.1
 MIGRATE       := $(BIN_DIR)/migrate
 GOLANGCI_LINT := $(BIN_DIR)/golangci-lint
 
+COMPOSE_FILE    ?= ./deploy/docker-compose.yml
+# -p фиксирует имя проекта: иначе compose берёт его из каталога файла (deploy),
+# и том share_trip_pgdata заменяется пустым deploy_pgdata.
+# Каталог проекта намеренно не переопределяем: deploy/ — база для ./loki и ./alloy,
+# а каталог логов приложения подключён в compose как ../logs (корень репозитория).
+COMPOSE         := docker compose -f $(COMPOSE_FILE) -p $(APP_NAME)
+
 .DEFAULT_GOAL := help
-.PHONY: help deps fmt lint test build run up down migrate-up migrate-down migrate-status check
+.PHONY: help deps fmt lint test coverage build run up down migrate-up migrate-down migrate-status check
 
 help: ## Показать список команд
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -41,6 +48,13 @@ lint: $(GOLANGCI_LINT) ## Запустить golangci-lint
 test: ## Запустить тесты
 	go test -race -cover ./...
 
+coverage: ## Запустить тесты и показать покрытие по пакетам (отчёт — coverage.out)
+	go test -race -coverpkg=./... -coverprofile=coverage.out ./...
+	@echo
+	@echo "Покрытие по пакетам (нули в выводе go test — там нет своих _test.go):"
+	@awk -v prefix="$$(go list -m)/" 'NR>1 { split($$1,a,":"); f=a[1]; sub(/\/[^\/]+$$/,"",f); if (index(f,prefix)==1) f=substr(f,length(prefix)+1); tot[f]+=$$2; if ($$3>0) cov[f]+=$$2 } END { for (f in tot) printf "  %-22s %5.1f%%  (%d/%d)\n", f, 100*cov[f]/tot[f], cov[f], tot[f] }' coverage.out | sort
+	@go tool cover -func=coverage.out | tail -1
+
 # ==== Сборка и запуск ====
 build: ## Собрать бинарник
 	@mkdir -p $(BIN_DIR)
@@ -51,10 +65,10 @@ run: ## Запустить приложение
 
 # ==== Инфраструктура ====
 up: ## Поднять PostgreSQL в Docker
-	docker compose up -d
+	$(COMPOSE) up -d
 
 down: ## Остановить контейнеры
-	docker compose down
+	$(COMPOSE) down
 
 migrate-up: ## Применить все миграции
 	$(GOOSE) -dir $(MIGRATIONS_DIR) postgres "$(DB_DSN)" up
