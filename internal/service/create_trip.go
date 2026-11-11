@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/kostas-111/share_trip/internal/observability/logctx"
 	"github.com/kostas-111/share_trip/internal/usecase"
 )
 
@@ -22,6 +24,15 @@ type CreateTripResponse struct {
 }
 
 func (s *TripService) CreateTrip(ctx context.Context, req CreateTripRequest) (*CreateTripResponse, error) {
+	logger := logctx.Logger(ctx).With(
+		slog.String("service", "TripService"),
+		slog.String("operation", "CreateTrip"),
+		slog.String("client_id", req.ClientID.String()),
+	)
+	ctx = logctx.WithLogger(ctx, logger)
+
+	logger.Info("create trip started")
+
 	// service.CreateTripRequest -> usecase.CreateTripRequest
 	trip, err := s.creator.Create(ctx, usecase.CreateTripRequest{
 		ClientID:       req.ClientID,
@@ -31,8 +42,11 @@ func (s *TripService) CreateTrip(ctx context.Context, req CreateTripRequest) (*C
 		AvailableSeats: req.AvailableSeats,
 	})
 	if err != nil {
+		logger.Error("create trip failed", slog.Any("error", err))
 		return nil, err
 	}
+
+	logger.Info("create trip completed", slog.String("trip_id", trip.ID.String()))
 
 	// usecase.Trip -> service.CreateTripResponse
 	return &CreateTripResponse{Trip: trip}, nil

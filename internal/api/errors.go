@@ -2,10 +2,11 @@ package api
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 
 	"github.com/gofiber/fiber/v2"
 
+	"github.com/kostas-111/share_trip/internal/observability/logctx"
 	"github.com/kostas-111/share_trip/internal/usecase"
 )
 
@@ -49,7 +50,10 @@ func writeError(c *fiber.Ctx, err error) error {
 	status, code, msg := errorStatus(err)
 	if status == fiber.StatusInternalServerError {
 		// клиенту уходит обезличенное сообщение: детали ошибки остаются только в логе
-		log.Printf("unhandled error: %v", err)
+		logctx.Logger(c.UserContext()).Error(
+			"unhandled error",
+			slog.Any("error", err),
+		)
 	}
 	return c.Status(status).JSON(ErrorResponse{Code: code, Message: msg})
 }

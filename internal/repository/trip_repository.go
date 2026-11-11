@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/kostas-111/share_trip/internal/observability/logctx"
 	"github.com/kostas-111/share_trip/internal/repository/entity"
 	"github.com/kostas-111/share_trip/internal/usecase"
 )
@@ -15,6 +17,16 @@ import (
 var _ usecase.TripRepository = (*RepoPg)(nil)
 
 func (r *RepoPg) Create(ctx context.Context, trip *usecase.Trip) error {
+	logger := logctx.Logger(ctx).With(
+		slog.String("layer", "repository"),
+		slog.String("repository", "TripRepository"),
+		slog.String("operation", "Create"),
+		slog.String("trip_id", trip.ID.String()),
+		slog.String("client_id", trip.ClientID.String()),
+	)
+
+	logger.Info("insert trip started")
+
 	e := tripToEntity(trip)
 
 	const q = `
@@ -27,8 +39,15 @@ func (r *RepoPg) Create(ctx context.Context, trip *usecase.Trip) error {
 		e.DepartureTime, e.AvailableSeats, e.Status, e.CreatedAt,
 	)
 	if err != nil {
+		logger.Error(
+			"insert trip failed",
+			slog.Any("error", err),
+		)
 		return fmt.Errorf("insert trip: %w", err)
 	}
+
+	logger.Info("insert trip completed")
+
 	return nil
 }
 

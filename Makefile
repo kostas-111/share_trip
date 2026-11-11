@@ -13,6 +13,13 @@ MIGRATE_VERSION       := v4.18.1
 MIGRATE       := $(BIN_DIR)/migrate
 GOLANGCI_LINT := $(BIN_DIR)/golangci-lint
 
+COMPOSE_FILE    ?= ./deploy/docker-compose.yml
+# -p фиксирует имя проекта: иначе compose берёт его из каталога файла (deploy),
+# и том share_trip_pgdata заменяется пустым deploy_pgdata.
+# Каталог проекта намеренно не переопределяем: deploy/ — база для ./loki и ./alloy,
+# а каталог логов приложения подключён в compose как ../logs (корень репозитория).
+COMPOSE         := docker compose -f $(COMPOSE_FILE) -p $(APP_NAME)
+
 .DEFAULT_GOAL := help
 .PHONY: help deps fmt lint test coverage build run up down migrate-up migrate-down migrate-status check
 
@@ -58,10 +65,10 @@ run: ## Запустить приложение
 
 # ==== Инфраструктура ====
 up: ## Поднять PostgreSQL в Docker
-	docker compose up -d
+	$(COMPOSE) up -d
 
 down: ## Остановить контейнеры
-	docker compose down
+	$(COMPOSE) down
 
 migrate-up: ## Применить все миграции
 	$(GOOSE) -dir $(MIGRATIONS_DIR) postgres "$(DB_DSN)" up

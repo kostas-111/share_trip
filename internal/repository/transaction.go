@@ -2,10 +2,14 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/kostas-111/share_trip/internal/observability/logctx"
 )
 
 func WithTx[T any](
@@ -13,24 +17,41 @@ func WithTx[T any](
 	pool *pgxpool.Pool,
 	block func(tx pgx.Tx) (*T, error),
 ) (*T, error) {
+	logger := logctx.Logger(ctx).With(
+		slog.String("layer", "transaction"),
+	)
+
+	logger.Info("begin transaction")
+
 	txBegin, err := pool.Begin(ctx)
 	if err != nil {
+		logger.Error("failed to begin transaction", slog.Any("error", err))
 		return nil, fmt.Errorf("begin tx: %w", err)
 	}
-	defer func() { _ = txBegin.Rollback(ctx) }()
+	defer func() {
+		if err := txBegin.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			logger.Error("rollback transaction failed", slog.Any("error", err))
+		}
+	}()
 
 	res, err := block(txBegin)
 	if err != nil {
+		logger.Error("transaction block failed", slog.Any("error", err))
 		return nil, err // ошибку уже обернули слои ниже
 	}
 
 	if err := ctx.Err(); err != nil {
+		logger.Error("transaction aborted before commit", slog.Any("error", err))
 		return nil, err
 	}
 
 	if err := txBegin.Commit(ctx); err != nil {
+		logger.Error("failed to commit transaction", slog.Any("error", err))
 		return nil, fmt.Errorf("commit tx: %w", err)
 	}
+
+	logger.Info("commit transaction")
+
 	return res, nil
 }
 
