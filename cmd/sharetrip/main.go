@@ -46,7 +46,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("app.NewLogger: %v", err)
 	}
-	defer logFile.Close()
+	defer func() {
+		if err := logFile.Close(); err != nil {
+			logger.Error("close log file failed", "err", err)
+		}
+	}()
 
 	appl := fiber.New()
 	appl.Use(middleware.Correlation(logger))
