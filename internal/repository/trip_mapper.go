@@ -1,11 +1,11 @@
 package repository
 
 import (
-	"github.com/kostas-111/share_trip/internal/domain"
 	"github.com/kostas-111/share_trip/internal/repository/entity"
+	"github.com/kostas-111/share_trip/internal/usecase"
 )
 
-func tripToEntity(t *domain.Trip) entity.Trip {
+func tripToEntity(t *usecase.Trip) entity.Trip {
 	return entity.Trip{
 		ID:             t.ID,
 		ClientID:       t.ClientID,
@@ -18,15 +18,15 @@ func tripToEntity(t *domain.Trip) entity.Trip {
 	}
 }
 
-func tripFromEntity(e entity.Trip) *domain.Trip {
-	return &domain.Trip{
+func tripFromEntity(e entity.Trip) *usecase.Trip {
+	return &usecase.Trip{
 		ID:             e.ID,
 		ClientID:       e.ClientID,
 		FromPoint:      e.FromPoint,
 		ToPoint:        e.ToPoint,
 		DepartureTime:  e.DepartureTime,
 		AvailableSeats: e.AvailableSeats,
-		Status:         domain.TripStatus(e.Status),
+		Status:         usecase.TripStatus(e.Status),
 		CreatedAt:      e.CreatedAt,
 	}
 }

@@ -29,11 +29,21 @@ func (h *TripHandler) PublishTrip(c *fiber.Ctx) error {
 		return writeBadRequest(c, "invalid JSON body: "+err.Error())
 	}
 
+	clientID, err := clientIDFromRequest(c)
+	if err != nil {
+		return writeBadRequest(c, err.Error())
+	}
+
 	resp, err := h.svc.PublishTrip(c.UserContext(), service.PublishTripRequest{
-		TripID: req.TripID,
+		TripID:   req.TripID,
+		ClientID: clientID,
 	})
 	if err != nil {
 		return writeError(c, err)
+	}
+
+	if resp.AlreadyPublished {
+		return c.SendStatus(fiber.StatusNoContent)
 	}
 
 	t := resp.Trip
