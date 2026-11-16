@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -17,6 +18,15 @@ import (
 var _ usecase.TripRepository = (*RepoPg)(nil)
 
 func (r *RepoPg) Create(ctx context.Context, trip *usecase.Trip) error {
+	started := time.Now()
+	result := "success"
+
+	defer func() {
+		r.metrics.RepositoryQueryTotal.WithLabelValues("trip_create", result).Inc()
+		r.metrics.RepositoryQueryDuration.WithLabelValues("trip_create", result).
+			Observe(time.Since(started).Seconds())
+	}()
+
 	logger := logctx.Logger(ctx).With(
 		slog.String("layer", "repository"),
 		slog.String("repository", "TripRepository"),
@@ -39,6 +49,8 @@ func (r *RepoPg) Create(ctx context.Context, trip *usecase.Trip) error {
 		e.DepartureTime, e.AvailableSeats, e.Status, e.CreatedAt,
 	)
 	if err != nil {
+		result = "error"
+
 		logger.Error(
 			"insert trip failed",
 			slog.Any("error", err),
@@ -52,6 +64,15 @@ func (r *RepoPg) Create(ctx context.Context, trip *usecase.Trip) error {
 }
 
 func (r *RepoPg) GetByID(ctx context.Context, id uuid.UUID) (*usecase.Trip, error) {
+	started := time.Now()
+	result := "success"
+
+	defer func() {
+		r.metrics.RepositoryQueryTotal.WithLabelValues("trip_get_by_id", result).Inc()
+		r.metrics.RepositoryQueryDuration.WithLabelValues("trip_get_by_id", result).
+			Observe(time.Since(started).Seconds())
+	}()
+
 	const q = `
 		SELECT id, client_id, from_point, to_point, departure_time, seats, status, created_at
 		FROM trip_domain.trips
@@ -66,6 +87,7 @@ func (r *RepoPg) GetByID(ctx context.Context, id uuid.UUID) (*usecase.Trip, erro
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil // not found — не ошибка на уровне БД
 		}
+		result = "error"
 		return nil, fmt.Errorf("get trip: %w", err)
 	}
 
@@ -73,6 +95,15 @@ func (r *RepoPg) GetByID(ctx context.Context, id uuid.UUID) (*usecase.Trip, erro
 }
 
 func (r *RepoPg) GetByIDForUpdate(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*usecase.Trip, error) {
+	started := time.Now()
+	result := "success"
+
+	defer func() {
+		r.metrics.RepositoryQueryTotal.WithLabelValues("trip_get_by_id_for_update", result).Inc()
+		r.metrics.RepositoryQueryDuration.WithLabelValues("trip_get_by_id_for_update", result).
+			Observe(time.Since(started).Seconds())
+	}()
+
 	const q = `
 		SELECT id, client_id, from_point, to_point, departure_time, seats, status, created_at
 		FROM trip_domain.trips
@@ -88,24 +119,45 @@ func (r *RepoPg) GetByIDForUpdate(ctx context.Context, tx pgx.Tx, id uuid.UUID) 
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil // not found — не ошибка на уровне БД
 		}
+		result = "error"
 		return nil, fmt.Errorf("get trip for update: %w", err)
 	}
 	return tripFromEntity(e), nil
 }
 
 func (r *RepoPg) UpdateStatus(ctx context.Context, tx pgx.Tx, id uuid.UUID, status usecase.TripStatus) error {
+	started := time.Now()
+	result := "success"
+
+	defer func() {
+		r.metrics.RepositoryQueryTotal.WithLabelValues("trip_update_status", result).Inc()
+		r.metrics.RepositoryQueryDuration.WithLabelValues("trip_update_status", result).
+			Observe(time.Since(started).Seconds())
+	}()
+
 	const q = `UPDATE trip_domain.trips SET status = $2 WHERE id = $1`
 	if _, err := tx.Exec(ctx, q, id, status); err != nil {
+		result = "error"
 		return fmt.Errorf("update trip status: %w", err)
 	}
 	return nil
 }
 
 func (r *RepoPg) InsertHistory(ctx context.Context, tx pgx.Tx, tripID uuid.UUID, from, to usecase.TripStatus) error {
+	started := time.Now()
+	result := "success"
+
+	defer func() {
+		r.metrics.RepositoryQueryTotal.WithLabelValues("trip_history_insert", result).Inc()
+		r.metrics.RepositoryQueryDuration.WithLabelValues("trip_history_insert", result).
+			Observe(time.Since(started).Seconds())
+	}()
+
 	const q = `
 		INSERT INTO trip_domain.trip_history (id, trip_id, from_status, to_status)
 		VALUES ($1, $2, $3, $4)`
 	if _, err := tx.Exec(ctx, q, uuid.New(), tripID, from, to); err != nil {
+		result = "error"
 		return fmt.Errorf("insert trip history: %w", err)
 	}
 	return nil

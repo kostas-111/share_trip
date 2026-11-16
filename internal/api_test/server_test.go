@@ -12,9 +12,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/kostas-111/share_trip/internal/api"
+	"github.com/kostas-111/share_trip/internal/observability/metrics"
 	"github.com/kostas-111/share_trip/internal/repository"
 	"github.com/kostas-111/share_trip/internal/service"
 	"github.com/kostas-111/share_trip/internal/usecase"
@@ -72,14 +74,18 @@ func TestMain(m *testing.M) {
 		log.Fatalf("create pgx pool: %v", err)
 	}
 
-	repo := repository.NewRepoPg(testPool)
+	registry := prometheus.NewRegistry()
+	met := metrics.New(registry)
+
+	repo := repository.NewRepoPg(testPool, met)
 	svc := service.NewTripService(
+		met,
 		usecase.NewTripCreator(repo),
 		usecase.NewTripReader(repo),
 		usecase.NewTripPublisher(repo, repo, repo),
 	)
 	tripHandler := api.NewTripHandler(svc)
-	server := api.NewServer(repo, tripHandler)
+	server := api.NewServer(repo, tripHandler, registry)
 
 	testApp = fiber.New()
 	server.Route(testApp.Group(""))

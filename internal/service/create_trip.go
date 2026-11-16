@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -24,6 +25,15 @@ type CreateTripResponse struct {
 }
 
 func (s *TripService) CreateTrip(ctx context.Context, req CreateTripRequest) (*CreateTripResponse, error) {
+	started := time.Now()
+	result := "success"
+
+	defer func() {
+		s.metrics.TripCreateTotal.WithLabelValues(result).Inc()
+		s.metrics.TripCreateDuration.WithLabelValues(result).
+			Observe(time.Since(started).Seconds())
+	}()
+
 	logger := logctx.Logger(ctx).With(
 		slog.String("service", "TripService"),
 		slog.String("operation", "CreateTrip"),
@@ -42,6 +52,13 @@ func (s *TripService) CreateTrip(ctx context.Context, req CreateTripRequest) (*C
 		AvailableSeats: req.AvailableSeats,
 	})
 	if err != nil {
+		switch {
+		case errors.Is(err, usecase.ErrValidation):
+			result = "validation_error"
+		default:
+			result = "internal_error"
+		}
+
 		logger.Error("create trip failed", slog.Any("error", err))
 		return nil, err
 	}

@@ -9,10 +9,12 @@ import (
 	config "github.com/kostas-111/share_trip/configs"
 	"github.com/kostas-111/share_trip/internal/api"
 	"github.com/kostas-111/share_trip/internal/app"
+	"github.com/kostas-111/share_trip/internal/observability/metrics"
 	"github.com/kostas-111/share_trip/internal/observability/middleware"
 	"github.com/kostas-111/share_trip/internal/repository"
 	"github.com/kostas-111/share_trip/internal/service"
 	"github.com/kostas-111/share_trip/internal/usecase"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func main() {
@@ -33,14 +35,18 @@ func main() {
 	}
 	defer pool.Close()
 
-	repo := repository.NewRepoPg(pool)
+	registry := prometheus.NewRegistry()
+	m := metrics.New(registry)
+
+	repo := repository.NewRepoPg(pool, m)
 	svc := service.NewTripService(
+		m,
 		usecase.NewTripCreator(repo),
 		usecase.NewTripReader(repo),
 		usecase.NewTripPublisher(repo, repo, repo),
 	)
 	tripHandler := api.NewTripHandler(svc)
-	server := api.NewServer(repo, tripHandler)
+	server := api.NewServer(repo, tripHandler, registry)
 
 	logger, logFile, err := app.NewLogger()
 	if err != nil {
@@ -54,6 +60,7 @@ func main() {
 
 	appl := fiber.New()
 	appl.Use(middleware.Correlation(logger))
+	appl.Use(api.NewHTTPMetricsMiddleware(m))
 	server.Route(appl.Group("/api"))
 
 	if err := appl.Listen(":8080"); err != nil {
